@@ -8,8 +8,21 @@
 #include <iomanip>
 #include <limits>
 #include <random>
+#include <fstream>   // exportar CSV
+#include <cstdlib>   // system()
 using namespace std;
 
+// ====== Constantes globais (exportação/Sheets) ======
+const string CAMINHO_CSV = "/Users/caio/C04 - Algoritmos 3/projeto/dicionario/dicionario.csv";
+const string CMD_ATUALIZAR_SHEETS =
+    "python3 \"/Users/caio/C04 - Algoritmos 3/projeto/tabela_significados.py\"";
+
+// ====== PROTÓTIPOS (importante para chamadas antecipadas) ======
+void exportarCSV(const string& caminho);
+void atualizarGoogleSheets();
+void sincronizarSheets();
+
+// ====== Estruturas ======
 struct Palavra {
     string ficticio;                  // termo na língua fictícia
     vector<string> significadosPT;    // 1..N significados em português (nós do grafo)
@@ -161,6 +174,10 @@ void cadastrarPalavra() {
     idxPalavra[p.ficticio] = (int)dicionario.size();
     dicionario.push_back(p);
     conectarNoGrafo(p.ficticio, p.significadosPT);
+
+    // Sincroniza automaticamente (CSV + Google Sheets)
+    sincronizarSheets();
+
     cout << "Cadastrada!\n";
 }
 
@@ -241,6 +258,10 @@ void removerPalavra() {
     }
     idxPalavra.erase(fic);
     dicionario.pop_back();
+
+    // Sincroniza automaticamente (CSV + Google Sheets)
+    sincronizarSheets();
+
     cout << "Removida.\n";
 }
 
@@ -257,14 +278,14 @@ void calcularSimilaridade() {
     cout << fixed << setprecision(4)
          << "Distancia Euclidiana entre " << a << " e " << b << " = " << dist << "\n";
 }
+
+// ====== Utilidades de UI ======
 void clearScreen() {
-    // Limpa a tela e move o cursor para o topo (funciona em macOS, Linux e VS Code)
     cout << "\x1b[2J\x1b[H";
     cout.flush();
 }
 
 void printHeader() {
-    // Cabeçalho opcional (troque pelo seu ASCII art se quiser)
     cout << "=====================================\n";
     cout << "     DICIONARIO — LINGUA FICTICIA    \n";
     cout << "=====================================\n\n";
@@ -275,17 +296,51 @@ void pauseEnter() {
     cin.ignore(numeric_limits<streamsize>::max(), '\n');
 }
 
+// ====== Exportação e sincronização ======
+void exportarCSV(const string& caminho) {
+    ofstream out(caminho);
+    if (!out) {
+        cout << "Falha ao abrir arquivo para escrita: " << caminho << "\n";
+        return;
+    }
+    out << "Português;Baldurês\n";
+    for (const auto& p : dicionario) {
+        // Junta múltiplos significados em PT com " | "
+        string pt;
+        for (size_t i = 0; i < p.significadosPT.size(); ++i) {
+            if (i) pt += " | ";
+            pt += p.significadosPT[i];
+        }
+        // Aspas para proteger acentos e o separador
+        out << '"' << pt << '"' << ';' << '"' << p.ficticio << '"' << "\n";
+    }
+    cout << "CSV exportado com sucesso para: " << caminho << "\n";
+}
+
+void atualizarGoogleSheets() {
+    int rc = system(CMD_ATUALIZAR_SHEETS.c_str());
+    if (rc != 0) {
+        cout << "Aviso: falha ao executar script Python (codigo " << rc << ").\n";
+    }
+}
+
+void sincronizarSheets() {
+    exportarCSV(CAMINHO_CSV);
+    atualizarGoogleSheets();
+}
+
 /// -------------------- MENU / MAIN --------------------
 int main() {
     ios::sync_with_stdio(false);
     cin.tie(nullptr);
 
-    carregarSeed(); // carrega as 50 palavras
+    carregarSeed();         // carrega as 50 palavras
+    sincronizarSheets();    // opcional: já começa sincronizado
 
     int opcao;
     do {
-        clearScreen();      // << limpa sempre antes de mostrar o menu
-        printHeader();      // << redesenha o cabeçalho
+        clearScreen();
+        printHeader();
 
         cout << "==== MENU ====\n";
         cout << "1. Cadastrar palavra\n";
@@ -301,7 +356,7 @@ int main() {
         if (!(cin >> opcao)) break;
         cin.ignore(numeric_limits<streamsize>::max(), '\n');
 
-        clearScreen();  // opcional: limpa ANTES de executar a ação
+        clearScreen();
         printHeader();
 
         switch (opcao) {
@@ -317,7 +372,7 @@ int main() {
         }
 
         if (opcao != 0) {
-            pauseEnter();   // espera o usuário ver o resultado
+            pauseEnter();
         }
     } while (opcao != 0);
 
