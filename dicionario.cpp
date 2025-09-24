@@ -257,6 +257,23 @@ void calcularSimilaridade() {
     cout << fixed << setprecision(4)
          << "Distancia Euclidiana entre " << a << " e " << b << " = " << dist << "\n";
 }
+void clearScreen() {
+    // Limpa a tela e move o cursor para o topo (funciona em macOS, Linux e VS Code)
+    cout << "\x1b[2J\x1b[H";
+    cout.flush();
+}
+
+void printHeader() {
+    // Cabeçalho opcional (troque pelo seu ASCII art se quiser)
+    cout << "=====================================\n";
+    cout << "     DICIONARIO — LINGUA FICTICIA    \n";
+    cout << "=====================================\n\n";
+}
+
+void pauseEnter() {
+    cout << "\nPressione ENTER para continuar...";
+    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+}
 
 /// -------------------- MENU / MAIN --------------------
 int main() {
@@ -267,7 +284,10 @@ int main() {
 
     int opcao;
     do {
-        cout << "\n==== MENU ====\n";
+        clearScreen();      // << limpa sempre antes de mostrar o menu
+        printHeader();      // << redesenha o cabeçalho
+
+        cout << "==== MENU ====\n";
         cout << "1. Cadastrar palavra\n";
         cout << "2. Listar significados de uma palavra\n";
         cout << "3. Listar sinonimos de uma palavra\n";
@@ -277,8 +297,12 @@ int main() {
         cout << "7. Calcular similaridade entre duas palavras (coords)\n";
         cout << "0. Sair\n";
         cout << "Escolha uma opcao: ";
+
         if (!(cin >> opcao)) break;
         cin.ignore(numeric_limits<streamsize>::max(), '\n');
+
+        clearScreen();  // opcional: limpa ANTES de executar a ação
+        printHeader();
 
         switch (opcao) {
             case 1: cadastrarPalavra(); break;
@@ -291,6 +315,11 @@ int main() {
             case 0: cout << "Encerrando programa...\n"; break;
             default: cout << "Opcao invalida!\n"; break;
         }
+
+        if (opcao != 0) {
+            pauseEnter();   // espera o usuário ver o resultado
+        }
     } while (opcao != 0);
+
     return 0;
 }
