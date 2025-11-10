@@ -1,23 +1,23 @@
 #include <iostream>
 #include <string>
 #include <vector>
-#include <unordered_map>
-#include <unordered_set>
-#include <algorithm>
+#include <unordered_map> //grafos e indices
+#include <unordered_set> //sinonimos e adjacencia
+#include <algorithm> //ordenacao,lista(alfabetica),sort
 #include <cmath>
 #include <iomanip>
-#include <limits>
-#include <random>
+#include <limits> //controle leitura strings
+#include <random> //geracao numeros para coordenadas
 #include <fstream>   // exportar CSV
 #include <cstdlib>   // system()
 using namespace std;
 
-// ====== Constantes globais (exportação/Sheets) ======
+// ====== Constantes globais (exportação/Sheets) PYTHON======
 const string CAMINHO_CSV = "/Users/caio/C04 - Algoritmos 3/projeto/dicionario/dicionario.csv";
 const string CMD_ATUALIZAR_SHEETS =
     "python3 \"/Users/caio/C04 - Algoritmos 3/projeto/tabela_significados.py\"";
 
-// ====== PROTÓTIPOS (importante para chamadas antecipadas) ======
+// ====== PROTÓTIPOS (importante para chamadas antecipadas)PYTHON ======
 void exportarCSV(const string& caminho);
 void atualizarGoogleSheets();
 void sincronizarSheets();
@@ -38,6 +38,76 @@ unordered_map<string, unordered_set<string>> adjSignificadoParaPalavras;
 
 // Índice rápido: fictício -> posição no vetor
 unordered_map<string, int> idxPalavra;
+
+/// ===================== NOVO: ÁRVORE BINÁRIA DE BUSCA (BST) =====================
+struct BSTNode {
+    string key;           // palavra fictícia
+    BSTNode *left, *right;
+    BSTNode(const string& k): key(k), left(nullptr), right(nullptr) {}
+};
+
+BSTNode* bstRoot = nullptr;
+
+bool bstSearch(BSTNode* root, const string& key) {
+    if (!root) return false;
+    if (key == root->key) return true;
+    if (key < root->key)  return bstSearch(root->left, key);
+    return bstSearch(root->right, key);
+}
+
+void bstInsert(BSTNode*& root, const string& key) {
+    if (!root) { root = new BSTNode(key); return; }
+    if (key == root->key) return;            // ignora duplicata
+    if (key < root->key)  bstInsert(root->left, key);
+    else                  bstInsert(root->right, key);
+}
+
+BSTNode* bstFindMin(BSTNode* root) {
+    while (root && root->left) root = root->left;
+    return root;
+}
+
+void bstRemove(BSTNode*& root, const string& key) {
+    if (!root) return;
+    if (key < root->key) bstRemove(root->left, key);
+    else if (key > root->key) bstRemove(root->right, key);
+    else {
+        // encontrou
+        if (!root->left && !root->right) { // folha
+            delete root; root = nullptr;
+        } else if (!root->left) { // 1 filho (direita)
+            BSTNode* t = root; root = root->right; delete t;
+        } else if (!root->right) { // 1 filho (esquerda)
+            BSTNode* t = root; root = root->left; delete t;
+        } else { // 2 filhos: substitui pelo sucessor
+            BSTNode* suc = bstFindMin(root->right);
+            root->key = suc->key;
+            bstRemove(root->right, suc->key);
+        }
+    }
+}
+
+void bstInOrder(BSTNode* root) {
+    if (!root) return;
+    bstInOrder(root->left);
+    cout << " - " << root->key << "\n";
+    bstInOrder(root->right);
+}
+
+int bstHeight(BSTNode* root) {
+    if (!root) return 0;
+    int l = bstHeight(root->left);
+    int r = bstHeight(root->right);
+    return 1 + (l > r ? l : r);
+}
+
+void bstClear(BSTNode*& root) {
+    if (!root) return;
+    bstClear(root->left);
+    bstClear(root->right);
+    delete root; root = nullptr;
+}
+/// =================== FIM: ÁRVORE BINÁRIA DE BUSCA (BST) =======================
 
 /// Normaliza strings de significado (minúsculas, sem espaços extras)
 static string norm(const string& s) {
@@ -90,9 +160,9 @@ void carregarSeed() {
         {"céu","Azyrel", {}},
         {"estrela","Thariel", {}},
         {"lua","Myrran", {}},
-        {"sol","Zerath", {"luz","claridade"}}, // compartilha "luz"
+        {"sol","Zerath", {"luz","claridade"}},
         {"noite","Druval", {"escuridão"}},
-        {"dia","Calyon", {"claridade"}},       // compartilha "claridade"
+        {"dia","Calyon", {"claridade"}},
         {"pedra","Orvok", {}},
         {"montanha","Gravorn", {}},
         {"rio","Sylmar", {}},
@@ -123,7 +193,7 @@ void carregarSeed() {
         {"espada","Khaldir", {}},
         {"escudo","Orvak", {}},
         {"portal","Zeythor", {"portão"}},
-        {"fogo-fátuo","Lythir", {"chama"}},    // compartilha "chama"
+        {"fogo-fátuo","Lythir", {"chama"}},
         {"veneno","Drakthyl", {}},
         {"som","Orynel", {}},
         {"silêncio","Mythar", {}},
@@ -145,6 +215,9 @@ void carregarSeed() {
         idxPalavra[p.ficticio] = (int)dicionario.size();
         dicionario.push_back(p);
         conectarNoGrafo(p.ficticio, p.significadosPT);
+
+        // === NOVO: sincroniza BST ===
+        bstInsert(bstRoot, p.ficticio);
     }
 }
 
@@ -175,17 +248,20 @@ void cadastrarPalavra() {
     dicionario.push_back(p);
     conectarNoGrafo(p.ficticio, p.significadosPT);
 
+    // === NOVO: insere na BST ===
+    bstInsert(bstRoot, p.ficticio);
+
     // Sincroniza automaticamente (CSV + Google Sheets)
     sincronizarSheets();
 
     cout << "Cadastrada!\n";
 }
 
-void listarSignificados() {
+void listarSignificados() { //palavra-> significado
     cout << "Digite a palavra (ficticia): ";
     string fic; cin >> ws; getline(cin, fic);
     if (!idxPalavra.count(fic)) { cout << "Nao encontrada.\n"; return; }
-    auto it = adjPalavraParaSignificados.find(fic);
+    auto it = adjPalavraParaSignificados.find(fic); //ponteiro, indicando onde a palavra esta
     if (it == adjPalavraParaSignificados.end() || it->second.empty()) {
         cout << "Sem significados cadastrados.\n"; return;
     }
@@ -199,7 +275,7 @@ void listarSignificados() {
     cout << "\n";
 }
 
-void listarSinonimos() {
+void listarSinonimos() { //palavra-> significado ->
     cout << "Digite a palavra (ficticia): ";
     string fic; cin >> ws; getline(cin, fic);
     if (!idxPalavra.count(fic)) { cout << "Nao encontrada.\n"; return; }
@@ -259,6 +335,9 @@ void removerPalavra() {
     idxPalavra.erase(fic);
     dicionario.pop_back();
 
+    // === NOVO: remove da BST ===
+    bstRemove(bstRoot, fic);
+
     // Sincroniza automaticamente (CSV + Google Sheets)
     sincronizarSheets();
 
@@ -277,6 +356,21 @@ void calcularSimilaridade() {
     double dist = sqrt(dx*dx + dy*dy + dz*dz);
     cout << fixed << setprecision(4)
          << "Distancia Euclidiana entre " << a << " e " << b << " = " << dist << "\n";
+}
+
+// ====== NOVO: utilidades BST para o MENU ======
+void bstBuscarUI() {
+    cout << "Digite a palavra (ficticia) para buscar na BST: ";
+    string fic; cin >> ws; getline(cin, fic);
+    bool ok = bstSearch(bstRoot, fic);
+    cout << (ok ? "Encontrada na BST.\n" : "Nao encontrada na BST.\n");
+}
+
+void bstImprimirInOrdemUI() {
+    cout << "BST (in-ordem) — " 
+         << "altura = " << bstHeight(bstRoot) << "\n";
+    bstInOrder(bstRoot);
+    cout << "(total de nos exibidos segue a ordem alfabetica da BST)\n";
 }
 
 // ====== Utilidades de UI ======
@@ -334,7 +428,7 @@ int main() {
     ios::sync_with_stdio(false);
     cin.tie(nullptr);
 
-    carregarSeed();         // carrega as 50 palavras
+    carregarSeed();         // carrega as 50 palavras (e insere na BST)
     sincronizarSheets();    // opcional: já começa sincronizado
 
     int opcao;
@@ -350,6 +444,8 @@ int main() {
         cout << "5. Listar palavras por ordem de tamanho\n";
         cout << "6. Remover palavra\n";
         cout << "7. Calcular similaridade entre duas palavras (coords)\n";
+        cout << "8. (BST) Buscar palavra\n";
+        cout << "9. (BST) Imprimir BST em ordem\n";
         cout << "0. Sair\n";
         cout << "Escolha uma opcao: ";
 
@@ -367,6 +463,8 @@ int main() {
             case 5: listarPorTamanho(); break;
             case 6: removerPalavra(); break;
             case 7: calcularSimilaridade(); break;
+            case 8: bstBuscarUI(); break;              // NOVO
+            case 9: bstImprimirInOrdemUI(); break;     // NOVO
             case 0: cout << "Encerrando programa...\n"; break;
             default: cout << "Opcao invalida!\n"; break;
         }
@@ -375,6 +473,9 @@ int main() {
             pauseEnter();
         }
     } while (opcao != 0);
+
+    // limpeza opcional da BST
+    bstClear(bstRoot);
 
     return 0;
 }
