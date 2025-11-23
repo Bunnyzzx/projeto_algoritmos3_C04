@@ -24,7 +24,7 @@ void sincronizarSheets();
 
 // ====== Estruturas ======
 struct Palavra {
-    string ficticio;                  // termo na língua fictícia
+    string ficticio;                  // termo na língua fictícia (sempre minúsculo)
     vector<string> significadosPT;    // 1..N significados em português (nós do grafo)
     double x, y, z;                   // coordenadas
 };
@@ -41,7 +41,7 @@ unordered_map<string, int> idxPalavra;
 
 /// ===================== NOVO: ÁRVORE BINÁRIA DE BUSCA (BST) =====================
 struct BSTNode {
-    string key;           // palavra fictícia
+    string key;           // palavra fictícia (sempre minúsculo)
     BSTNode *left, *right;
     BSTNode(const string& k): key(k), left(nullptr), right(nullptr) {}
 };
@@ -114,6 +114,16 @@ static string norm(const string& s) {
     string t;
     for (char c : s) t.push_back(::tolower((unsigned char)c));
     // trim simples
+    auto l = t.find_first_not_of(" \t\r\n");
+    auto r = t.find_last_not_of(" \t\r\n");
+    if (l==string::npos) return "";
+    return t.substr(l, r-l+1);
+}
+
+/// Normaliza PALAVRAS FICTÍCIAS (também minúsculas e sem espaços nas pontas)
+static string normFic(const string& s) {
+    string t;
+    for (char c : s) t.push_back(::tolower((unsigned char)c));
     auto l = t.find_first_not_of(" \t\r\n");
     auto r = t.find_last_not_of(" \t\r\n");
     if (l==string::npos) return "";
@@ -207,7 +217,7 @@ void carregarSeed() {
 
     for (auto& s : base) {
         Palavra p;
-        p.ficticio = s.fic;
+        p.ficticio = normFic(s.fic);          // <<< NORMALIZA FICTÍCIO
         p.significadosPT = { norm(s.pt) };
         for (auto& e : s.extra) p.significadosPT.push_back(norm(e));
         p.x = dist(rng); p.y = dist(rng); p.z = dist(rng);
@@ -227,10 +237,18 @@ void cadastrarPalavra() {
     cout << "Palavra (ficticia): ";
     cin >> ws;
     getline(cin, p.ficticio);
+    p.ficticio = normFic(p.ficticio);     // <<< NORMALIZA
+
+    if (p.ficticio.empty()) {
+        cout << "Palavra invalida. Operacao cancelada.\n";
+        return;
+    }
+
     if (idxPalavra.count(p.ficticio)) {
         cout << "Ja existe. Operacao cancelada.\n";
         return;
     }
+
     int n;
     cout << "Quantos significados em PT? ";
     cin >> n; cin.ignore(numeric_limits<streamsize>::max(), '\n');
@@ -260,6 +278,8 @@ void cadastrarPalavra() {
 void listarSignificados() { //palavra-> significado
     cout << "Digite a palavra (ficticia): ";
     string fic; cin >> ws; getline(cin, fic);
+    fic = normFic(fic);                     // <<< NORMALIZA ENTRADA
+
     if (!idxPalavra.count(fic)) { cout << "Nao encontrada.\n"; return; }
     auto it = adjPalavraParaSignificados.find(fic); //ponteiro, indicando onde a palavra esta
     if (it == adjPalavraParaSignificados.end() || it->second.empty()) {
@@ -278,6 +298,8 @@ void listarSignificados() { //palavra-> significado
 void listarSinonimos() { //palavra-> significado ->
     cout << "Digite a palavra (ficticia): ";
     string fic; cin >> ws; getline(cin, fic);
+    fic = normFic(fic);                     // <<< NORMALIZA ENTRADA
+
     if (!idxPalavra.count(fic)) { cout << "Nao encontrada.\n"; return; }
 
     unordered_set<string> sinonimos;
@@ -302,7 +324,7 @@ void listarOrdemAlfabetica() {
     vector<string> v;
     v.reserve(dicionario.size());
     for (auto& p : dicionario) v.push_back(p.ficticio);
-    sort(v.begin(), v.end());
+    sort(v.begin(), v.end());       // agora tudo já está em minúsculo
     cout << "Palavras (A-Z):\n";
     for (auto& w : v) cout << " - " << w << "\n";
 }
@@ -321,6 +343,8 @@ void listarPorTamanho() {
 void removerPalavra() {
     cout << "Digite a palavra a remover: ";
     string fic; cin >> ws; getline(cin, fic);
+    fic = normFic(fic);                     // <<< NORMALIZA ENTRADA
+
     if (!idxPalavra.count(fic)) { cout << "Nao encontrada.\n"; return; }
     int pos = idxPalavra[fic];
     descadastrarDoGrafo(fic, dicionario[pos].significadosPT);
@@ -347,6 +371,9 @@ void removerPalavra() {
 void calcularSimilaridade() {
     cout << "Digite duas palavras (ficticias):\n";
     string a,b; cin >> ws; getline(cin, a); getline(cin, b);
+    a = normFic(a);                        // <<< NORMALIZA
+    b = normFic(b);                        // <<< NORMALIZA
+
     if (!idxPalavra.count(a) || !idxPalavra.count(b)) {
         cout << "Uma das palavras nao existe.\n"; return;
     }
@@ -362,6 +389,8 @@ void calcularSimilaridade() {
 void bstBuscarUI() {
     cout << "Digite a palavra (ficticia) para buscar na BST: ";
     string fic; cin >> ws; getline(cin, fic);
+    fic = normFic(fic);                    // <<< NORMALIZA ENTRADA
+
     bool ok = bstSearch(bstRoot, fic);
     cout << (ok ? "Encontrada na BST.\n" : "Nao encontrada na BST.\n");
 }
