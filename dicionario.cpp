@@ -1,3 +1,10 @@
+//Caio de Castro
+//Pedro Faloni
+//Nathan Almeida
+//Daniel Granato
+//Gustavo Giron 
+
+
 #include <iostream>
 #include <string>
 #include <vector>
